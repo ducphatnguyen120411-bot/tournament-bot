@@ -1,8 +1,8 @@
 {
   "name": "tournament-bot",
   "version": "1.0.0",
-  "description": "Discord tournament bot",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
