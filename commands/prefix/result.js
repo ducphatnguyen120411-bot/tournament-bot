@@ -1,15 +1,20 @@
 const fs = require("fs");
-const BXH_CHANNEL = "1465634235254837405"; // kênh BXH
+
+const BXH_CHANNEL = "1465634235254837405";
+const DATA_FILE = "data/leaderboard.json";
 
 module.exports = (client) => {
   client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
 
-    const [cmd, name] = message.content.split(" ");
-    if (!["!win", "!lose"].includes(cmd) || !name) return;
+    const [cmd, ...args] = message.content.split(" ");
+    if (!["!win", "!lose"].includes(cmd)) return;
 
-    let data = fs.existsSync("data/leaderboard.json")
-      ? JSON.parse(fs.readFileSync("data/leaderboard.json"))
+    const name = args.join(" ");
+    if (!name) return message.reply("❌ Nhập tên VĐV");
+
+    let data = fs.existsSync(DATA_FILE)
+      ? JSON.parse(fs.readFileSync(DATA_FILE))
       : {};
 
     if (!data[name]) data[name] = { win: 0, lose: 0 };
@@ -17,19 +22,26 @@ module.exports = (client) => {
     if (cmd === "!win") data[name].win++;
     if (cmd === "!lose") data[name].lose++;
 
-    fs.writeFileSync("data/leaderboard.json", JSON.stringify(data, null, 2));
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 
-    // update BXH
-    const channel = await client.channels.fetch(BXH_CHANNEL);
-    await channel.bulkDelete(10).catch(() => {});
+    const sorted = Object.entries(data).sort(
+      (a, b) => b[1].win - a[1].win
+    );
 
-    let text = "🏆 **BẢNG XẾP HẠNG**\n\n";
-    Object.entries(data)
-      .sort((a, b) => b[1].win - a[1].win)
-      .forEach((p, i) => {
-        text += `${i + 1}. ${p[0]} — ${p[1].win}W | ${p[1].lose}L\n`;
-      });
+    const bxh = sorted
+      .map(
+        ([n, s], i) =>
+          `**${i + 1}. ${n}** — 🏆 ${s.win} | ❌ ${s.lose}`
+      )
+      .join("\n");
 
-    channel.send(text);
+    const channel = client.channels.cache.get(BXH_CHANNEL);
+    if (channel) {
+      const msgs = await channel.messages.fetch({ limit: 1 });
+      if (msgs.size > 0) await msgs.first().edit(bxh);
+      else await channel.send(bxh);
+    }
+
+    message.reply(`✅ Đã cập nhật kết quả cho **${name}**`);
   });
 };
