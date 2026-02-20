@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, Collection } = require("discord.js");
 const fs = require("fs");
 require("dotenv").config();
 
@@ -10,31 +10,35 @@ const client = new Client({
   ]
 });
 
-/* ===== LOAD PREFIX COMMANDS ===== */
-const prefixCommands = [];
-const prefixPath = "./commands/prefix";
+client.commands = new Collection();
 
-fs.readdirSync(prefixPath).forEach(file => {
-  if (!file.endsWith(".js")) return;
-  const command = require(`${prefixPath}/${file}`);
-  prefixCommands.push(command);
-});
+// load prefix commands
+const prefixFiles = fs.readdirSync("./commands/prefix").filter(f => f.endsWith(".js"));
+for (const file of prefixFiles) {
+  const cmd = require(`./commands/prefix/${file}`);
+  client.commands.set(cmd.name, cmd);
+}
 
-/* ===== BOT READY ===== */
 client.once("ready", () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
 });
 
-/* ===== MESSAGE HANDLER ===== */
+// CHỈ 1 messageCreate
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
+  if (!message.content.startsWith("!")) return;
 
-  for (const cmd of prefixCommands) {
-    try {
-      await cmd(client, message);
-    } catch (err) {
-      console.error("❌ Command error:", err);
-    }
+  const args = message.content.slice(1).trim().split(/ +/);
+  const cmdName = args.shift().toLowerCase();
+
+  const cmd = client.commands.get(cmdName);
+  if (!cmd) return;
+
+  try {
+    await cmd.execute(message, args, client);
+  } catch (err) {
+    console.error(err);
+    message.reply("❌ Lệnh bị lỗi");
   }
 });
 
