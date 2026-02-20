@@ -1,50 +1,41 @@
-const { Client, Collection, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits } = require("discord.js");
 const fs = require("fs");
-
-const PREFIX = "!";
+require("dotenv").config();
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.MessageContent
   ]
 });
 
-// PREFIX COMMANDS
-client.prefixCommands = new Collection();
-for (const file of fs.readdirSync("./commands/prefix")) {
-  const cmd = require(`./commands/prefix/${file}`);
-  client.prefixCommands.set(cmd.name, cmd);
-}
+/* ===== LOAD PREFIX COMMANDS ===== */
+const prefixCommands = [];
+const prefixPath = "./commands/prefix";
 
-// SLASH COMMANDS
-client.slashCommands = new Collection();
-for (const file of fs.readdirSync("./commands/slash")) {
-  const cmd = require(`./commands/slash/${file}`);
-  client.slashCommands.set(cmd.data.name, cmd);
-}
+fs.readdirSync(prefixPath).forEach(file => {
+  if (!file.endsWith(".js")) return;
+  const command = require(`${prefixPath}/${file}`);
+  prefixCommands.push(command);
+});
 
+/* ===== BOT READY ===== */
 client.once("ready", () => {
-  console.log("Bot online");
+  console.log(`✅ Bot online: ${client.user.tag}`);
 });
 
-// PREFIX
-client.on("messageCreate", async msg => {
-  if (msg.author.bot || !msg.content.startsWith(PREFIX)) return;
+/* ===== MESSAGE HANDLER ===== */
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
 
-  const args = msg.content.slice(PREFIX.length).trim().split(/ +/);
-  const cmdName = args.shift().toLowerCase();
-  const cmd = client.prefixCommands.get(cmdName);
-  if (cmd) cmd.execute(msg, args);
-});
-
-// SLASH
-client.on("interactionCreate", async i => {
-  if (!i.isChatInputCommand()) return;
-  const cmd = client.slashCommands.get(i.commandName);
-  if (cmd) await cmd.execute(i);
+  for (const cmd of prefixCommands) {
+    try {
+      await cmd(client, message);
+    } catch (err) {
+      console.error("❌ Command error:", err);
+    }
+  }
 });
 
 client.login(process.env.TOKEN);
